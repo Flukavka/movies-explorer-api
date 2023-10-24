@@ -1,6 +1,6 @@
 const allowedCors = [
-  'https://',
-  'http://',
+  'https://nosarevavs.nomoredomainsicu.ru',
+  'http://nosarevavs.nomoredomainsicu.ru',
   'https://localhost:3000',
   'http://localhost:3000',
   'https://localhost:3001',
