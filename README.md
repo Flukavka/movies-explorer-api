@@ -2,6 +2,6 @@
 
 Здесь хранится бэкенд часть приложения.
 
-IP 158.160.113.218
+IP 51.250.11.231
 
 Backend api.nosarevavs.nomoredomainsicu.ru
