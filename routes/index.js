@@ -1,26 +1,27 @@
-const express = require('express');
-const { errors } = require('celebrate');
-const routesUsers = require('./users');
-const routesMovies = require('./movies');
-const routesCreateUser = require('./register');
-const routesLogin = require('./login');
-const { auth } = require('../middlewares/auth');
-const NotFoundError = require('../errors/not_found_error');
-const { errorLogger } = require('../middlewares/logger');
+const router = require('express').Router();
+const auth = require('../middlewares/auth');
+const { registrationUser, loginUser } = require('../controllers/users');
+const NotFoundError = require('../errors/NotFoundError');
+const userRouter = require('./users');
+const movieRouter = require('./movies');
 
-const routes = express.Router();
+const {
+  loginUserValidator,
+  registrationUserValidator,
+} = require('../middlewares/validation');
 
-routes.use(express.json());
+router.post('/signup', registrationUserValidator, registrationUser);
 
-routes.use('/users', auth, routesUsers);
-routes.use('/movies', auth, routesMovies);
-routes.use('/signup', routesCreateUser);
-routes.use('/signin', routesLogin);
+router.post('/signin', loginUserValidator, loginUser);
 
-routes.use('*', (_req, _res, next) => next(new NotFoundError('Страница не найдена')));
+router.use(auth);
 
-routes.use(errorLogger);
+router.use('/', userRouter);
 
-routes.use(errors());
+router.use('/', movieRouter);
 
-module.exports = routes;
+router.use('*', (req, res, next) => {
+  next(new NotFoundError('Страница не найдена'));
+});
+
+module.exports = router;

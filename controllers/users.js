@@ -1,93 +1,113 @@
-const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/user');
-const BadRequestError = require('../errors/bad_request_error');
-const ConflictError = require('../errors/conflict_error');
-//  const NotFoundError = require('../errors/not_found_error');
-const {
-  OK_STATUS,
-  CREATED_SUCCESS_STATUS,
-} = require('../utils/constants');
+const BadRequestError = require('../errors/BadRequestError');
+const ConflictError = require('../errors/ConflictError');
+const NotFoundError = require('../errors/NotFoundError');
 
 const { NODE_ENV, JWT_SECRET } = process.env;
+const { SECRET_KEY_DEV, CREATED_CODE } = require('../utils/constants');
 
-module.exports.createUser = (req, res, next) => {
-  bcrypt.hash(req.body.password, 10)
+// Регистрирую в приложении нового пользователя
+const registrationUser = (req, res, next) => {
+  bcrypt
+    .hash(req.body.password, 10)
     .then((hash) => User.create({
-      ...req.body,
+      email: req.body.email,
       password: hash,
+      name: req.body.name,
     }))
-    .then((user) => {
-      res.status(CREATED_SUCCESS_STATUS).send({
-        name: user.name,
-        email: user.email,
-      });
-    })
-    .catch((err) => {
-      if (err instanceof mongoose.Error.ValidationError) {
-        next(new BadRequestError('Ошибка валидации'));
-      } else if (err.code === 11000) {
-        next(new ConflictError('Пользователь с такой почтой уже существует'));
+    .then((user) => res.status(CREATED_CODE).send({
+      email: user.email,
+      name: user.name,
+      _id: user._id,
+    }))
+    .catch((e) => {
+      if (e.code === 11000) {
+        next(new ConflictError('Такой пользователь уже существует'));
+      } else if (e.name === 'ValidationError') {
+        next(
+          new BadRequestError(
+            'Переданы некорректные данные при создании пользователя',
+          ),
+        );
       } else {
-        next(err);
+        next(e);
       }
     });
 };
 
-module.exports.login = (req, res, next) => {
+// Логин пользователя
+const loginUser = (req, res, next) => {
   const { email, password } = req.body;
-
   return User.findUserByCredentials(email, password)
     .then((user) => {
+      // Создание JWT-токена
       const token = jwt.sign(
         { _id: user._id },
-        NODE_ENV === 'production' ? JWT_SECRET : 'super-strong-secret',
+        NODE_ENV === 'production' ? JWT_SECRET : SECRET_KEY_DEV,
         { expiresIn: '7d' },
       );
-      return res.status(OK_STATUS).send({ token });
+
+      res.send({ token });
     })
-    .catch((err) => {
-      if (err instanceof mongoose.Error.ValidationError) {
-        next(new BadRequestError('Ошибка валидации'));
+    .catch(next);
+};
+
+// Получение данных пользователя
+const getUserInfo = (req, res, next) => {
+  const userId = req.user._id;
+  User.findById(userId)
+    .orFail(() => {
+      throw new NotFoundError('Пользователь по указанному _id не найден');
+    })
+    .then((user) => {
+      res.send(user);
+    })
+    .catch((e) => {
+      if (e.name === 'CastError') {
+        next(new BadRequestError('Запрашиваемый пользователь не найден'));
       } else {
-        next(err);
+        next(e);
       }
     });
 };
 
-module.exports.getCurrentUserInfo = (req, res, next) => {
-  const id = req.user._id;
-  User.findById(id)
-    .then((user) => {
-      if (user) {
-        res.status(OK_STATUS).send({ name: user.name, email: user.email });
-      }
+// Редактирование данных пользователя
+const editUserInfo = (req, res, next) => {
+  const { email, name } = req.body;
+  User.findByIdAndUpdate(
+    req.user._id,
+    { email, name },
+    {
+      new: true,
+      runValidators: true,
+    },
+  )
+    .orFail(() => {
+      throw new NotFoundError('Пользователь с указанным _id не найден');
     })
-    .catch((err) => {
-      next(err);
+    .then((user) => {
+      res.send(user);
+    })
+    .catch((e) => {
+      if (e.code === 11000) {
+        next(new ConflictError('Такой пользователь уже существует'));
+      } else if (e.name === 'ValidationError') {
+        next(
+          new BadRequestError(
+            'Переданы некорректные данные при обновлении профиля',
+          ),
+        );
+      } else {
+        next(e);
+      }
     });
 };
 
-module.exports.updateUserProfile = (req, res, next) => {
-  const { name, email } = req.body;
-  const id = req.user._id;
-
-  User
-    .findByIdAndUpdate(
-      id,
-      { name, email },
-      { returnDocument: 'after', runValidators: true, new: true },
-    )
-    .then((user) => {
-      if (user) {
-        res.status(OK_STATUS).send({
-          name,
-          email,
-        });
-      }
-    })
-    .catch((err) => {
-      next(err);
-    });
+module.exports = {
+  registrationUser,
+  getUserInfo,
+  editUserInfo,
+  loginUser,
 };

@@ -1,22 +1,14 @@
-const express = require('express');
-const { celebrate, Joi } = require('celebrate');
-const { auth } = require('../middlewares/auth');
+// Файл маршрута users/me
+const userRouter = require('express').Router();
+
 const {
-  getCurrentUserInfo,
-  updateUserProfile,
-} = require('../controllers/users');
+  getUserInfoValidator,
+  editUserInfoValidator,
+} = require('../middlewares/validation');
 
-const router = express.Router();
+const { getUserInfo, editUserInfo } = require('../controllers/users');
 
-//  получает данные залогиненного пользователя
-router.get('/me', auth, getCurrentUserInfo);
+userRouter.get('/users/me', getUserInfoValidator, getUserInfo);
+userRouter.patch('/users/me', editUserInfoValidator, editUserInfo);
 
-//  обновляет профиль
-router.patch('/me', celebrate({
-  body: Joi.object().keys({
-    name: Joi.string().min(2).max(30),
-    email: Joi.string().required().email(),
-  }).unknown(true),
-}), updateUserProfile);
-
-module.exports = router;
+module.exports = userRouter;
